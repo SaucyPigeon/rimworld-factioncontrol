@@ -150,6 +150,9 @@ namespace FactionControl
     [HarmonyPatch(typeof(IncidentWorker_RaidEnemy), "FactionCanBeGroupSource", null)]
     public static class IncidentWorker_RaidEnemy_FactionCanBeGroupSource
     {
+		/*
+		Possibly destructive prefix
+		*/
         public static bool Prefix(Faction f, ref bool __result)
         {
             if (f == Faction.OfMechanoids)
@@ -178,15 +181,81 @@ namespace FactionControl
         }
     }
 
-    [HarmonyPatch(typeof(FactionGenerator), "GenerateFactionsIntoWorld", null)]
+
+	/*
+	int num = 0;
+	using (IEnumerator<FactionDef> enumerator = DefDatabase<FactionDef>.AllDefs.GetEnumerator())
+	{
+		while (enumerator.MoveNext())
+		{
+			FactionDef current = enumerator.Current;
+			for (int i = 0; i < current.requiredCountAtGameStart; i++)
+			{
+				Faction faction = FactionGenerator.NewGeneratedFaction(current);
+				Find.FactionManager.Add(faction);
+				if (!current.hidden)
+				{
+					num++;
+				}
+			}
+		}
+		goto IL_A9;
+	}
+	IL_5F:
+	IEnumerable<FactionDef> arg_83_0 = DefDatabase<FactionDef>.AllDefs;
+	Func<FactionDef, bool> arg_83_1;
+	if ((arg_83_1 = FactionGenerator.<>c.<>9__3_0) == null)
+	{
+		arg_83_1 = (FactionGenerator.<>c.<>9__3_0 = new Func<FactionDef, bool>(FactionGenerator.<>c.<>9.<GenerateFactionsIntoWorld>b__3_0));
+	}
+	Faction faction2 = FactionGenerator.NewGeneratedFaction(arg_83_0.Where(arg_83_1).RandomElement<FactionDef>());
+	Find.World.factionManager.Add(faction2);
+	num++;
+	IL_A9:
+	if (num >= 5)
+	{
+		int num2 = GenMath.RoundRandom((float)Find.WorldGrid.TilesCount / 100000f * FactionGenerator.SettlementsPer100kTiles.RandomInRange * Find.World.info.overallPopulation.GetScaleFactor());
+		num2 -= Find.WorldObjects.Settlements.Count;
+		for (int j = 0; j < num2; j++)
+		{
+			IEnumerable<Faction> arg_130_0 = Find.World.factionManager.AllFactionsListForReading;
+			Func<Faction, bool> arg_130_1;
+			if ((arg_130_1 = FactionGenerator.<>c.<>9__3_2) == null)
+			{
+				arg_130_1 = (FactionGenerator.<>c.<>9__3_2 = new Func<Faction, bool>(FactionGenerator.<>c.<>9.<GenerateFactionsIntoWorld>b__3_2));
+			}
+			IEnumerable<Faction> arg_154_0 = arg_130_0.Where(arg_130_1);
+			Func<Faction, float> arg_154_1;
+			if ((arg_154_1 = FactionGenerator.<>c.<>9__3_3) == null)
+			{
+				arg_154_1 = (FactionGenerator.<>c.<>9__3_3 = new Func<Faction, float>(FactionGenerator.<>c.<>9.<GenerateFactionsIntoWorld>b__3_3));
+			}
+			Faction faction3 = arg_154_0.RandomElementByWeight(arg_154_1);
+			Settlement settlement = (Settlement)WorldObjectMaker.MakeWorldObject(WorldObjectDefOf.Settlement);
+			settlement.SetFaction(faction3);
+			settlement.Tile = TileFinder.RandomSettlementTileFor(faction3, false, null);
+			settlement.Name = SettlementNameGenerator.GenerateSettlementName(settlement, null);
+			Find.WorldObjects.Add(settlement);
+		}
+		return;
+	}
+	goto IL_5F;
+	*/
+	[HarmonyPatch(typeof(FactionGenerator), "GenerateFactionsIntoWorld", null)]
     public static class FactionGenerator_GenerateFactionsIntoWorld
     {
-        public static bool Prefix()
+		/*
+		Destructive prefix
+		*/
+		public static bool Prefix()
         {
             int num = 0;
+			// track actual faction count
             int actualFactionCount = 0;
+			// track faction centers
             Controller.factionCenters.Clear();
 
+			// Use CustomFaction instead, use Main.CustomFactions instead
             foreach (CustomFaction cf in Main.CustomFactions)
             {
                 cf.FactionDef.requiredCountAtGameStart = (int)cf.RequiredCount;
@@ -200,6 +269,9 @@ namespace FactionControl
                 }
             }
 
+			// Refactor into method
+			// SetFactionCounts()
+			// {
             foreach (FactionDef def in DefDatabase<FactionDef>.AllDefs)
             {
                 if (def.isPlayer)
@@ -229,6 +301,7 @@ namespace FactionControl
                         SetFactionCount(def, (int)Controller_FactionOptions.Settings.pirateMin);
                         break;
                 }
+				// }
 
                 actualFactionCount += def.requiredCountAtGameStart;
                 for (int i = 0; i < def.requiredCountAtGameStart; i++)
@@ -329,9 +402,13 @@ namespace FactionControl
     [HarmonyPatch(typeof(TileFinder), "RandomSettlementTileFor", null)]
     public static class TileFinder_RandomFactionBaseTileFor
     {
-        public static bool Prefix(Faction faction, ref int __result, bool mustBeAutoChoosable = false, Predicate<int> extraValidator = null)
+		/*
+		Destructive prefix
+		*/
+		public static bool Prefix(Faction faction, ref int __result, bool mustBeAutoChoosable = false, Predicate<int> extraValidator = null)
         {
             int num;
+			// Increase 500 to 2500
             for (int i = 0; i < 2500; i++)
             {
                 if ((
@@ -353,8 +430,10 @@ namespace FactionControl
                     return item.biome.settlementSelectionWeight;
                 }, out num))
                 {
+					// Remove TryRandomElementByWeight
                     if (TileFinder.IsValidTileForNewSettlement(num, null))
                     {
+						// Add all of this
                         if (faction == null || faction.def.hidden.Equals(true) || faction.def.isPlayer.Equals(true))
                         {
                             __result = num;
@@ -406,6 +485,7 @@ namespace FactionControl
                 }
             }
             Log.Warning(string.Concat("Failed to find faction base tile for ", faction));
+			// Add the following
             if (Controller.failureCount.ContainsKey(faction))
             {
                 Controller.failureCount[faction]++;
@@ -424,6 +504,7 @@ namespace FactionControl
                 Log.Warning("  Retrying.");
                 Controller.failureCount.Add(faction, 1);
             }
+			// End of changes
             __result = 0;
             return false;
         }
@@ -433,7 +514,10 @@ namespace FactionControl
     [HarmonyPatch("Color", MethodType.Getter)]
     public static class Patch_Faction_get_Color
     {
-        public static bool Prefix(Faction __instance, ref Color __result)
+		/*
+		Destructive prefix
+		*/
+		public static bool Prefix(Faction __instance, ref Color __result)
         {
             if (!Controller.Settings.dynamicColors ||
                 __instance.def.isPlayer)
@@ -589,7 +673,10 @@ namespace FactionControl
     {
         private static readonly FieldInfo fi = typeof(Faction).GetField("naturalGoodwillTimer", BindingFlags.NonPublic | BindingFlags.Instance);
         private const int DT = 200000;
-        public static bool Prefix(Faction __instance)
+		/*
+		Possibly destructive prefix
+		*/
+		public static bool Prefix(Faction __instance)
         {
             if (Controller.Settings.relationsChangeOverTime)
                 return true;
